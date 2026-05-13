@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>暗記王</title>
+<!-- PDFライブラリ（オンライン時のみ読み込まれます） -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<style>
+  /* 寒色系（ネイビー・ブルー系）のクールなデザイン */
+  :root { --primary: #1e3a8a; --bg: #f0f4f8; --card: #ffffff; --text: #2c3e50; }
+  body { 
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; 
+    background: var(--bg); color: var(--text); margin: 0; padding: 10px; 
+    display: flex; justify-content: center; user-select: none; -webkit-user-select: none;
+  }
+  .container { width: 100%; max-width: 500px; background: var(--card); border-radius: 16px; box-shadow: 0 8px 24px rgba(30, 58, 138, 0.1); padding: 20px; box-sizing: border-box; min-height: 90vh; position: relative; border-top: 6px solid var(--primary); }
+  .app-title { text-align: center; color: var(--primary); font-size: 24px; margin: 10px 0 20px 0; font-weight: bold; letter-spacing: 4px; }
+  h2 { text-align: center; color: #334155; font-size: 18px; margin-top: 5px; }
+  .section { display: none; }
+  .section.active { display: block; }
+  label { display: block; margin-top: 15px; font-weight: bold; font-size: 14px; color: #475569; }
+  input, select, textarea { 
+    width: 100%; padding: 12px; margin-top: 5px; border: 1px solid #cbd5e1; 
+    border-radius: 8px; box-sizing: border-box; font-size: 16px; background: #f8fafc;
+  }
+  input[type="file"] { padding: 10px; font-size: 14px; background: #fff; }
+  
+  button { width: 100%; padding: 16px; margin-top: 15px; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; touch-action: manipulation; }
+  .btn-primary { background: var(--primary); color: white; box-shadow: 0 4px 0 #172554; }
+  .btn-primary:active { transform: translateY(4px); box-shadow: none; }
+  .btn-secondary { background: #3b82f6; color: white; box-shadow: 0 4px 0 #2563eb; }
+  .btn-secondary:active { transform: translateY(4px); box-shadow: none; }
+  
+  /* 単語帳リストと進捗バー */
+  .book-item { background: #fff; border: 1px solid #e2e8f0; padding: 15px; margin-bottom: 10px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+  .book-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .book-title { font-weight: bold; font-size: 16px; color: #1e293b; flex-grow: 1; cursor: pointer; }
+  .btn-delete { width: auto; padding: 6px 12px; margin: 0; background: #94a3b8; font-size: 12px; color: white; border-radius: 6px; box-shadow: none; }
+  
+  .target-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #64748b; margin-bottom: 5px; }
+  .target-input { width: 60px; padding: 4px; font-size: 12px; text-align: right; border: 1px solid #cbd5e1; border-radius: 4px; margin-left: 5px; background: #fff;}
+  .progress-container { width: 100%; background: #e2e8f0; border-radius: 6px; height: 10px; overflow: hidden; position: relative; cursor: pointer; }
+  .progress-fill { height: 100%; background: #3b82f6; transition: width 0.3s ease; }
+
+  /* 学習画面 */
+  .word-display { text-align: center; margin: 30px 0; min-height: 160px; user-select: text; -webkit-user-select: text; }
+  .word-no { color: #64748b; font-size: 14px; font-weight: bold; }
+  .word-en { font-size: 40px; font-weight: bold; margin: 15px 0; letter-spacing: 0.5px; color: #0f172a; }
+  .word-ja { font-size: 24px; color: #2563eb; margin: 20px 0; display: none; font-weight: bold; line-height: 1.4; }
+  
+  .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; display: none; margin-top: 10px; }
+  .btn-group button { margin-top: 0; padding: 18px 5px; font-size: 14px; color: white; border-radius: 8px; }
+  .btn-diff { background: #1e3a8a; box-shadow: 0 4px 0 #172554; }
+  .btn-slight { background: #2563eb; box-shadow: 0 4px 0 #1d4ed8; }
+  .btn-normal { background: #3b82f6; box-shadow: 0 4px 0 #2563eb; }
+  .btn-conf { background: #93c5fd; color: #1e3a8a; box-shadow: 0 4px 0 #60a5fa; }
+  .btn-exclude { background: #cbd5e1; color: #475569; width: 100%; margin-top: 15px; padding: 12px; font-size: 14px; box-shadow: none; }
+  .stats { text-align: center; font-size: 15px; color: #64748b; font-weight: bold; }
+  
+  /* カレンダー機能 */
+  .calendar-header { display: flex; justify-content: space-between; align-items: center; margin: 20px 0 10px; font-weight: bold; color: #1e293b;}
+  .calendar-nav { padding: 5px 15px; background: #e2e8f0; border-radius: 8px; cursor: pointer; color: #1e293b; border: none; width: auto; margin:0; box-shadow: none;}
+  .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; font-size: 14px; }
+  .calendar-day-name { font-weight: bold; color: #64748b; padding-bottom: 5px; }
+  .calendar-cell { padding: 10px 0; border-radius: 6px; background: #f8fafc; cursor: pointer; border: 1px solid transparent; color: #334155; }
+  .calendar-cell.has-data { background: #dbeafe; color: #1d4ed8; font-weight: bold; border-color: #bfdbfe; }
+  .calendar-cell.active { background: #3b82f6; color: white; }
+  .calendar-cell.empty { background: transparent; cursor: default; }
+  
+  .history-details { margin-top: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px; max-height: 250px; overflow-y: auto; }
+  .history-category { font-weight: bold; margin-top: 10px; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px; font-size: 14px; }
+  .history-word { font-size: 14px; color: #334155; margin: 3px 0; padding-left: 10px; }
+  
+  .import-area { margin-top: 30px; padding: 15px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; }
+  #pdf-loading { display: none; font-size: 13px; color: #2563eb; text-align: center; margin-top: 10px; font-weight: bold; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="app-title">暗記王</div>
+
+  <!-- 1. トップ画面 (単語帳リスト) -->
+  <div id="home-section" class="section active">
+    <h2>単語帳を選択</h2>
+    <div id="book-list"></div>
+    
+    <button class="btn-secondary" onclick="openStats()">📊 カレンダー・統計を見る</button>
+    
+    <div class="import-area">
+      <label style="margin-top: 0;">➕ 新しい単語帳を作成</label>
+      <input type="text" id="new-book-name" placeholder="例: シス単 第1章">
+      <div style="margin-top: 15px; border-top: 1px dashed #cbd5e1; padding-top: 10px;">
+        <label style="font-size: 12px;">📁 PDFファイルから直接読み込む (※オンライン専用)</label>
+        <input type="file" id="pdf-upload" accept="application/pdf">
+        <div id="pdf-loading">⏳ PDFを解析中... 少々お待ちください</div>
+      </div>
+      <textarea id="import-text" rows="2" placeholder="ここに抽出されたテキストが入ります（手動コピペも可）" style="margin-top:10px; font-size:12px;"></textarea>
+      <button class="btn-primary" onclick="createNewBook()" style="padding:12px; font-size:14px;">取り込んで作成</button>
+    </div>
+  </div>
+
+  <!-- 2. カレンダー・統計画面 -->
+  <div id="stats-section" class="section">
+    <h2>学習カレンダー</h2>
+    <div class="calendar-header">
+      <button class="calendar-nav" onclick="changeMonth(-1)">◀</button>
+      <span id="calendar-month-label"></span>
+      <button class="calendar-nav" onclick="changeMonth(1)">▶</button>
+    </div>
+    
+    <div class="calendar-grid">
+      <div class="calendar-day-name" style="color:#e74c3c;">日</div>
+      <div class="calendar-day-name">月</div><div class="calendar-day-name">火</div>
+      <div class="calendar-day-name">水</div><div class="calendar-day-name">木</div>
+      <div class="calendar-day-name">金</div><div class="calendar-day-name" style="color:#3b82f6;">土</div>
+    </div>
+    <div class="calendar-grid" id="calendar-days"></div>
+    
+    <div class="history-details" id="history-details">
+      <div style="color: #64748b; text-align: center; font-size: 13px;">カレンダーの日付をタップすると、<br>その日学習した単語の詳細が表示されます</div>
+    </div>
+    
+    <button style="background: transparent; color: #64748b; box-shadow: none;" onclick="switchSection('home-section')">トップへ戻る</button>
+  </div>
+
+  <!-- 3. 出題設定画面 -->
+  <div id="setup-section" class="section">
+    <h2 id="current-book-name">設定</h2>
+    <label>出題モード</label>
+    <select id="mode-select">
+      <option value="srs">通常 (忘却曲線に基づき復習)</option>
+      <option value="random">完全ランダム</option>
+      <option value="pos">品詞別</option>
+    </select>
+    <div id="pos-container" style="display: none;">
+      <label>対象の品詞</label>
+      <select id="pos-select"><option value="動詞">動詞</option><option value="形容詞">形容詞</option><option value="名詞">名詞</option><option value="不明">その他</option></select>
+    </div>
+    <label>難易度フィルタ</label>
+    <select id="level-filter">
+      <option value="all">すべて</option>
+      <option value="diff">「難しい」のみ</option>
+      <option value="slight">「少し難しい」のみ</option>
+      <option value="normal">「ふつう」のみ</option>
+      <option value="conf">「自信ある」のみ</option>
+    </select>
+    <label>出題範囲 (No.)</label>
+    <div style="display: flex; gap: 10px; align-items: center;">
+      <input type="number" id="range-start" value="1" pattern="\d*"><span>〜</span><input type="number" id="range-end" value="2000" pattern="\d*">
+    </div>
+    <button class="btn-primary" onclick="prepareQueue()">学習スタート</button>
+    <button style="background: transparent; color: #94a3b8; margin-top:10px; box-shadow: none;" onclick="switchSection('home-section')">単語帳選び直す</button>
+  </div>
+
+  <!-- 4. 学習画面 -->
+  <div id="study-section" class="section">
+    <div class="stats">残り: <span id="queue-count">0</span> 単語</div>
+    <div class="word-display">
+      <div class="word-no" id="word-no"></div><div class="word-en" id="word-en"></div><div class="word-ja" id="word-ja"></div>
+    </div>
+    <button id="btn-show-answer" class="btn-primary" onclick="showAnswer()">答えを見る</button>
+    <div class="btn-group" id="evaluation-btns">
+      <button class="btn-diff" onclick="evaluateWord('diff')">難しい<br><small style="opacity:0.8">4時間後</small></button>
+      <button class="btn-slight" onclick="evaluateWord('slight')">少し難しい<br><small style="opacity:0.8">1日後</small></button>
+      <button class="btn-normal" onclick="evaluateWord('normal')">ふつう<br><small style="opacity:0.8">3日後</small></button>
+      <button class="btn-conf" onclick="evaluateWord('conf')">自信ある<br><small style="opacity:0.8">7日後</small></button>
+    </div>
+    <button id="btn-exclude-single" class="btn-exclude" style="display:none;" onclick="excludeWord()">完璧！ 以降は除外</button>
+    <button style="background: transparent; color: #94a3b8; margin-top: 30px; box-shadow: none;" onclick="switchSection('setup-section')">中断</button>
+  </div>
+  
+  <div id="done-section" class="section" style="text-align: center;">
+    <h2 style="color: #2563eb; margin-top: 50px;">完了！</h2>
+    <p id="done-msg" style="color: #475569;">現在の条件で復習が必要な単語はありません。</p>
+    <button class="btn-primary" onclick="switchSection('home-section')">トップへ戻る</button>
+  </div>
+</div>
+
+<script>
+// --- データ管理 ---
+// localStorageからデータを読み込み（なければ初期値）
+let books = JSON.parse(localStorage.getItem('myVocab_Books')) || { "サンプル": [{ id: 1, en: "follow", ja: "～の後に続く", pos: "動詞" }, { id: 2, en: "consider", ja: "～を考慮する", pos: "動詞" }] };
+let allProgress = JSON.parse(localStorage.getItem('myVocab_Progress')) || {};
+let targets = JSON.parse(localStorage.getItem('myVocab_Targets')) || {};
+let dailyHistory = JSON.parse(localStorage.getItem('myVocab_History')) || {};
+
+let activeBookName = "";
+let currentQueue = [];
+let currentIndex = 0;
+let currentCalDate = new Date();
+
+// --- PDF読み込み処理（オフラインエラー回避付き） ---
+document.getElementById('pdf-upload').addEventListener('change', async function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  // オフライン等でpdfjsLibが読み込めていない場合のガード
+  if (typeof pdfjsLib === 'undefined') {
+    alert("オフライン環境のためPDFライブラリが読み込めません。テキストを直接ペーストして作成してください。");
+    document.getElementById('pdf-upload').value = "";
+    return;
+  }
+
+  const loading = document.getElementById('pdf-loading');
+  const textArea = document.getElementById('import-text');
+  loading.style.display = 'block'; 
+  textArea.value = "";
+
+  try {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+    let fullText = "";
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      fullText += textContent.items.map(item => item.str).join(" ") + "\n";
+    }
+    textArea.value = fullText;
+  } catch (error) {
+    alert("PDFの解析に失敗しました。ファイルが保護されている可能性があります。"); 
+    console.error(error);
+  } finally { 
+    loading.style.display = 'none'; 
+  }
+});
+
+// --- 画面切り替え ---
+function switchSection(id) {
+  document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if(id === 'home-section') renderBookList();
+}
+
+// --- トップ画面：リストと進捗バーの描画 ---
+function renderBookList() {
+  const list = document.getElementById('book-list');
+  list.innerHTML = "";
+  
+  Object.keys(books).forEach(name => {
+    const wordList = books[name];
+    const totalCount = wordList.length;
+    // 目標の取得（未設定なら全単語数）
+    const targetCount = targets[name] || totalCount;
+    // 進捗（「完璧(exclude)」または「自信ある(conf)」になっている単語数）
+    const progressData = allProgress[name] || {};
+    const learnedCount = Object.values(progressData).filter(p => p.excluded || p.level === 'conf').length;
+    const progressRate = targetCount > 0 ? Math.min(100, Math.floor((learnedCount / targetCount) * 100)) : 0;
+
+    const div = document.createElement('div');
+    div.className = "book-item";
+    div.innerHTML = `
+      <div class="book-header">
+        <div class="book-title" onclick="selectBook('${name}')">📖 ${name} <span class="book-count">(${totalCount}語)</span></div>
+        <button class="btn-delete" onclick="deleteBook('${name}')">削除</button>
+      </div>
+      <div class="target-row">
+        <span>マスター済: ${learnedCount} 語</span>
+        <span>目標: <input type="number" class="target-input" value="${targetCount}" onchange="updateTarget('${name}', this.value)"> 語</span>
+      </div>
+      <div class="progress-container" onclick="selectBook('${name}')" title="達成率: ${progressRate}%">
+        <div class="progress-fill" style="width: ${progressRate}%;"></div>
+      </div>
+      <div style="text-align:right; font-size:11px; color:#3b82f6; margin-top:3px;">達成率: ${progressRate}%</div>
+    `;
+    list.appendChild(div);
+  });
+}
+
+function updateTarget(bookName, value) {
+  const num = parseInt(value, 10);
+  if(!isNaN(num) && num > 0) {
+    targets[bookName] = num;
+    localStorage.setItem('myVocab_Targets', JSON.stringify(targets));
+    renderBookList();
+  }
+}
+
+// --- 単語帳の作成と削除 ---
+function createNewBook() {
+  const name = document.getElementById('new-book-name').value.trim();
+  const text = document.getElementById('import-text').value;
+  if (!name || !text) return alert("名前とテキストを入力してください");
+  
+  // 正規表現で 番号、英単語、日本語 を抽出
+  const regex = /(\d+)\s+([a-zA-Z\s\-]+?)\s+([^0-9a-zA-Z]+[^\d]*)/g;
+  let match, wordList = [];
+  while ((match = regex.exec(text)) !== null) {
+    wordList.push({ id: parseInt(match[1]), en: match[2].trim(), ja: match[3].trim(), pos: "不明" });
+  }
+  
+  if (wordList.length === 0) return alert("テキストから単語を抽出できませんでした。");
+  
+  // 重複排除とソート
+  const uniqueWords = [];
+  const idSet = new Set();
+  wordList.sort((a,b) => a.id - b.id).forEach(w => { 
+    if(!idSet.has(w.id)) { idSet.add(w.id); uniqueWords.push(w); }
+  });
+  
+  books[name] = uniqueWords;
+  localStorage.setItem('myVocab_Books', JSON.stringify(books));
+  
+  // フォームリセット
+  document.getElementById('new-book-name').value = ""; 
+  document.getElementById('import-text').value = ""; 
+  document.getElementById('pdf-upload').value = "";
+  
+  renderBookList(); 
+  alert(name + " を作成しました！（抽出数: " + uniqueWords.length + "単語）");
+}
+
+function deleteBook(name) {
+  if (confirm(name + " を削除しますか？学習の進捗も消えます。")) {
+    delete books[name]; 
+    delete allProgress[name]; 
+    delete targets[name];
+    localStorage.setItem('myVocab_Books', JSON.stringify(books));
+    localStorage.setItem('myVocab_Progress', JSON.stringify(allProgress));
+    localStorage.setItem('myVocab_Targets', JSON.stringify(targets));
+    renderBookList();
+  }
+}
+
+// --- カレンダー・統計機能 ---
+function getTodayString() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function recordHistory(book, id, en, evaluation) {
+  const today = getTodayString();
+  if(!dailyHistory[today]) dailyHistory[today] = [];
+  // 同じ日に同じ単語をやった場合は上書き更新する
+  dailyHistory[today] = dailyHistory[today].filter(h => !(h.book === book && h.id === id));
+  dailyHistory[today].push({ book, id, en, eval: evaluation });
+  localStorage.setItem('myVocab_History', JSON.stringify(dailyHistory));
+}
+
+function openStats() {
+  currentCalDate = new Date();
+  switchSection('stats-section');
+  renderCalendar();
+  document.getElementById('history-details').innerHTML = '<div style="color:#64748b; text-align:center; font-size:13px; margin-top:20px;">カレンダーの日付をタップすると、<br>その日学習した単語の詳細が表示されます</div>';
+}
+
+function changeMonth(diff) {
+  currentCalDate.setMonth(currentCalDate.getMonth() + diff);
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const year = currentCalDate.getFullYear();
+  const month = currentCalDate.getMonth();
+  document.getElementById('calendar-month-label').innerText = `${year}年 ${month + 1}月`;
+  
+  const grid = document.getElementById('calendar-days');
+  grid.innerHTML = "";
+  
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  
+  // 月初めの空白埋め
+  for(let i=0; i<firstDay; i++) {
+    const emptyCell = document.createElement('div');
+    emptyCell.className = "calendar-cell empty";
+    grid.appendChild(emptyCell);
+  }
+  
+  // 日付セル作成
+  for(let i=1; i<=daysInMonth; i++) {
+    const cell = document.createElement('div');
+    cell.className = "calendar-cell";
+    cell.innerText = i;
+    
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+    // その日にデータがあれば色を付ける
+    if(dailyHistory[dateStr] && dailyHistory[dateStr].length > 0) {
+      cell.classList.add('has-data');
+    }
+    
+    // タップした時の処理
+    cell.onclick = () => {
+      document.querySelectorAll('.calendar-cell').forEach(c => c.classList.remove('active'));
+      cell.classList.add('active');
+      showDayDetails(dateStr);
+    };
+    grid.appendChild(cell);
+  }
+}
+
+function showDayDetails(dateStr) {
+  const detailsDiv = document.getElementById('history-details');
+  const records = dailyHistory[dateStr];
+  
+  if(!records || records.length === 0) {
+    detailsDiv.innerHTML = `<div style="text-align:center; color:#94a3b8; font-size:14px; margin-top:20px;">${dateStr} の学習記録はありません</div>`;
+    return;
+  }
+  
+  const evalMap = {
+    'exclude': { label: '🌟 完璧 (除外)', color: '#64748b' },
+    'conf': { label: '🔵 自信ある (簡単)', color: '#3b82f6' },
+    'normal': { label: '🟢 ふつう', color: '#10b981' },
+    'slight': { label: '🟠 少し難しい', color: '#f59e0b' },
+    'diff': { label: '🔴 難しい', color: '#ef4444' }
+  };
+  
+  const grouped = { 'exclude':[], 'conf':[], 'normal':[], 'slight':[], 'diff':[] };
+  records.forEach(r => { if(grouped[r.eval]) grouped[r.eval].push(r); });
+  
+  let html = `<div style="font-weight:bold; margin-bottom:15px; color:#1e293b; text-align:center;">${dateStr} の学習結果 (${records.length}語)</div>`;
+  
+  Object.keys(grouped).forEach(key => {
+    if(grouped[key].length > 0) {
+      html += `<div class="history-category" style="color:${evalMap[key].color}">${evalMap[key].label} : ${grouped[key].length}語</div>`;
+      grouped[key].forEach(w => {
+        html += `<div class="history-word">No.${w.id} <b>${w.en}</b> <span style="font-size:11px; color:#94a3b8;">(${w.book})</span></div>`;
+      });
+    }
+  });
+  
+  detailsDiv.innerHTML = html;
+}
+
+// --- 出題設定 ---
+function selectBook(name) {
+  activeBookName = name;
+  document.getElementById('current-book-name').innerText = name;
+  const wordList = books[name];
+  if(wordList.length > 0) {
+    document.getElementById('range-start').value = wordList[0].id;
+    document.getElementById('range-end').value = wordList[wordList.length-1].id;
+  }
+  
+  // 品詞セレクタの表示制御
+  document.getElementById('mode-select').addEventListener('change', e => {
+    document.getElementById('pos-container').style.display = (e.target.value === 'pos') ? 'block' : 'none';
+  });
+
+  switchSection('setup-section');
+}
+
+function prepareQueue() {
+  const mode = document.getElementById('mode-select').value;
+  const levelFilter = document.getElementById('level-filter').value;
+  const startId = parseInt(document.getElementById('range-start').value);
+  const endId = parseInt(document.getElementById('range-end').value);
+  const posFilter = document.getElementById('pos-select').value;
+  
+  const now = Date.now();
+  const bookWords = books[activeBookName];
+  const bookProgress = allProgress[activeBookName] || {};
+  
+  // 条件に合わせてフィルタリング
+  currentQueue = bookWords.filter(w => {
+    if (w.id < startId || w.id > endId) return false;
+    const p = bookProgress[w.id] || { nextReview: 0, excluded: false, level: 'none' };
+    
+    if (p.excluded) return false;
+    if (levelFilter !== 'all' && p.level !== levelFilter) return false;
+    if (mode === 'srs' && p.nextReview > now) return false;
+    if (mode === 'pos' && w.pos !== posFilter) return false;
+    
+    return true;
+  });
+
+  // ランダムモード等はシャッフル
+  if (mode === 'random' || mode === 'pos' || levelFilter !== 'all') {
+    currentQueue.sort(() => Math.random() - 0.5);
+  }
+
+  if (currentQueue.length === 0) return alert("条件に合う単語（現在復習が必要な単語）がありません。");
+  
+  currentIndex = 0;
+  switchSection('study-section');
+  showNextWord();
+}
+
+// --- 学習画面 ---
+function showNextWord() {
+  if (currentIndex >= currentQueue.length) {
+    return switchSection('done-section');
+  }
+  
+  const word = currentQueue[currentIndex];
+  document.getElementById('queue-count').innerText = currentQueue.length - currentIndex;
+  document.getElementById('word-no').innerText = `No. ${word.id}`;
+  document.getElementById('word-en').innerText = word.en;
+  document.getElementById('word-ja').innerText = word.ja;
+  
+  // 初期状態
+  document.getElementById('word-ja').style.display = 'none';
+  document.getElementById('btn-show-answer').style.display = 'block';
+  document.getElementById('evaluation-btns').style.display = 'none';
+  document.getElementById('btn-exclude-single').style.display = 'none';
+}
+
+function showAnswer() {
+  document.getElementById('word-ja').style.display = 'block';
+  document.getElementById('btn-show-answer').style.display = 'none';
+  document.getElementById('evaluation-btns').style.display = 'grid';
+  document.getElementById('btn-exclude-single').style.display = 'block';
+}
+
+function evaluateWord(level) {
+  const word = currentQueue[currentIndex];
+  if (!allProgress[activeBookName]) allProgress[activeBookName] = {};
+  
+  // 次回の復習間隔を設定
+  let addMs = 0;
+  if (level === 'diff') addMs = 4 * 60 * 60 * 1000;
+  else if (level === 'slight') addMs = 24 * 60 * 60 * 1000;
+  else if (level === 'normal') addMs = 3 * 24 * 60 * 60 * 1000;
+  else if (level === 'conf') addMs = 7 * 24 * 60 * 60 * 1000;
+  
+  allProgress[activeBookName][word.id] = { nextReview: Date.now() + addMs, level: level, excluded: false };
+  localStorage.setItem('myVocab_Progress', JSON.stringify(allProgress));
+  
+  recordHistory(activeBookName, word.id, word.en, level);
+  
+  currentIndex++;
+  showNextWord();
+}
+
+function excludeWord() {
+  const word = currentQueue[currentIndex];
+  if (!allProgress[activeBookName]) allProgress[activeBookName] = {};
+  
+  allProgress[activeBookName][word.id] = { nextReview: 0, level: 'conf', excluded: true };
+  localStorage.setItem('myVocab_Progress', JSON.stringify(allProgress));
+  
+  recordHistory(activeBookName, word.id, word.en, 'exclude');
+  
+  currentIndex++;
+  showNextWord();
+}
+
+// アプリ起動時にリストを表示
+renderBookList();
+</script>
+</body>
+</html>
